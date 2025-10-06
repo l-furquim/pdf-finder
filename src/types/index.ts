@@ -1,56 +1,51 @@
 export interface SearchResult {
-  cpf: string;
-  filePath: string;
-  fileName: string;
-  pageNumber: number;
-  snippet: string;
-  timestamp: Date;
+  cpf: string
+  filePath: string
+  fileName: string
+  pageNumber: number
+  snippet: string
+  timestamp: Date
 }
 
-export interface SearchOptions {
-  cpfList: string[];
-  permissiveMode: boolean;
-  files: FileItem[];
+export interface ProcessingProgress {
+  currentFile: string
+  processedFiles: number
+  totalFiles: number
+  currentPage?: number
+  totalPages?: number
 }
 
-export interface FileItem {
-  path: string;
-  name: string;
-  size: number;
+export interface CsvLogEntry {
+  timestamp: string
+  cpf: string
+  filePath: string
+  found: boolean
+  pages: string
 }
 
-export interface ProcessingStatus {
-  total: number;
-  processed: number;
-  currentFile: string;
-  isProcessing: boolean;
+export interface PdfFile {
+  path: string
+  name: string
+  size: number
 }
 
-export interface CpfValidationResult {
-  isValid: boolean;
-  normalized: string;
-  error?: string;
+export interface SearchConfig {
+  cpfs: string[]
+  permissiveMode: boolean
+  files: PdfFile[]
 }
 
-export interface LogEntry {
-  timestamp: string;
-  cpf: string;
-  filePath: string;
-  found: boolean;
-  pages: string;
+export interface WorkerMessage {
+  type: 'progress' | 'result' | 'error' | 'complete'
+  data?: any
 }
 
-export interface ElectronAPI {
-  selectFiles: () => Promise<FileItem[]>;
-  selectFolder: () => Promise<FileItem[]>;
-  processPdf: (filePath: string, cpfList: string[]) => Promise<SearchResult[]>;
-  writeLog: (entries: LogEntry[]) => Promise<void>;
-  openPdfAtPage: (filePath: string, pageNumber: number) => Promise<void>;
-  openLogFolder: () => Promise<void>;
-}
-
-declare global {
-  interface Window {
-    electronAPI: ElectronAPI;
-  }
+export interface IpcChannels {
+  'select-files': () => Promise<PdfFile[]>
+  'select-directory': () => Promise<PdfFile[]>
+  'process-pdfs': (config: SearchConfig) => void
+  'cancel-processing': () => void
+  'open-pdf-at-page': (filePath: string, pageNumber: number) => void
+  'get-logs-directory': () => Promise<string>
+  'open-logs-directory': () => void
 }

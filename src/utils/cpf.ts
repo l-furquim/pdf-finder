@@ -1,118 +1,165 @@
-import { CpfValidationResult } from '../types';
+export function extractDigits(text: string): string {
+  return text.replace(/\D/g, '')
+}
 
-export const normalizeCpf = (cpf: string): string => {
-  return cpf.replace(/\D/g, '');
-};
-
-export const validateAndNormalizeCpf = (
-  cpf: string,
-  permissiveMode: boolean
-): CpfValidationResult => {
-  const digits = normalizeCpf(cpf);
+export function normalizeCpf(cpf: string, permissiveMode: boolean = false): string | null {
+  const digits = extractDigits(cpf)
 
   if (digits.length === 11) {
-    return { isValid: true, normalized: digits };
+    return digits
   }
 
   if (digits.length < 11 && permissiveMode) {
-    const padded = digits.padStart(11, '0');
-    return { isValid: true, normalized: padded };
+    return digits.padStart(11, '0')
   }
 
   if (digits.length > 11) {
-    return {
-      isValid: false,
-      normalized: '',
-      error: 'CPF possui mais de 11 dígitos',
-    };
+    return null
   }
 
-  return {
-    isValid: false,
-    normalized: '',
-    error: 'CPF possui menos de 11 dígitos',
-  };
-};
+  return null
+}
 
-export const validateCpfList = (
-  cpfList: string[],
-  permissiveMode: boolean
-): { valid: string[]; invalid: string[] } => {
-  const valid: string[] = [];
-  const invalid: string[] = [];
+export function parseCpfList(text: string, permissiveMode: boolean = false): string[] {
+  const separators = /[,;\n\r\t]+/
+  const cpfs = text
+    .split(separators)
+    .map((cpf) => cpf.trim())
+    .filter((cpf) => cpf.length > 0)
+    .map((cpf) => normalizeCpf(cpf, permissiveMode))
+    .filter((cpf): cpf is string => cpf !== null)
 
-  cpfList.forEach((cpf) => {
-    const result = validateAndNormalizeCpf(cpf, permissiveMode);
-    if (result.isValid) {
-      valid.push(result.normalized);
-    } else {
-      invalid.push(cpf);
-    }
-  });
+  return Array.from(new Set(cpfs))
+}
 
-  return { valid, invalid };
-};
+export function formatCpf(cpf: string): string {
+  const digits = extractDigits(cpf)
+  if (digits.length !== 11) return cpf
 
-export const formatCpf = (cpf: string): string => {
-  const digits = normalizeCpf(cpf);
-  if (digits.length !== 11) return cpf;
-  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9, 11)}`;
-};
+  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9, 11)}`
+}
 
-export const createCpfRegexPatterns = (cpfDigits: string): RegExp[] => {
-  if (cpfDigits.length !== 11) return [];
+export function generateCpfPatterns(cpf: string): RegExp[] {
+  const digits = extractDigits(cpf)
+  if (digits.length !== 11) return []
 
-  return [
-    new RegExp(`\\b${cpfDigits.slice(0, 3)}\\.${cpfDigits.slice(3, 6)}\\.${cpfDigits.slice(6, 9)}-${cpfDigits.slice(9, 11)}\\b`, 'g'),
-    new RegExp(`\\b${cpfDigits}\\b`, 'g'),
-    new RegExp(`\\b${cpfDigits.slice(0, 9)}-${cpfDigits.slice(9, 11)}\\b`, 'g'),
-  ];
-};
+  const patterns: RegExp[] = []
 
-export const searchCpfInText = (
+  const formatted = `${digits.slice(0, 3)}\\.${digits.slice(3, 6)}\\.${digits.slice(6, 9)}-${digits.slice(9, 11)}`
+  patterns.push(new RegExp(`${formatted}`, 'g'))
+
+  patterns.push(new RegExp(`${digits}`, 'g'))
+
+  const withDash = `${digits.slice(0, 9)}-${digits.slice(9, 11)}`
+  patterns.push(new RegExp(`${withDash}`, 'g'))
+
+  const withSpaces = `${digits.slice(0, 3)}\\s+${digits.slice(3, 6)}\\s+${digits.slice(6, 9)}-${digits.slice(9, 11)}`
+  patterns.push(new RegExp(`${withSpaces}`, 'g'))
+
+  return patterns
+}
+
+export function searchCpfInText(
   text: string,
-  cpfDigits: string
-): { found: boolean; snippet: string } => {
-  const textDigitsOnly = text.replace(/\D/g, '');
-  const textLower = text.toLowerCase();
+  cpf: string,
+  contextLength: number = 50
+): Array<{ match: string; index: number; snippet: string }> {
+  const results: Array<{ match: string; index: number; snippet: string }> = []
+  const patterns = generateCpfPatterns(cpf)
+  const digits = extractDigits(cpf)
 
-  if (textDigitsOnly.includes(cpfDigits)) {
-    const index = textDigitsOnly.indexOf(cpfDigits);
-    const originalIndex = findOriginalIndex(text, index);
-    const snippet = extractSnippet(text, originalIndex);
-    return { found: true, snippet };
+  const digitsOnlyText = extractDigits(text)
+  let searchPos = 0
+  
+  while (searchPos < digitsOnlyText.length) {
+    const digitIndex = digitsOnlyText.indexOf(digits, searchPos)
+    if (digitIndex === -1) break
+
+    const start = Math.max(0, digitIndex - contextLength)
+    const end = Math.min(digitsOnlyText.length, digitIndex + digits.length + contextLength)
+    const snippet = digitsOnlyText.slice(start, end)
+
+    let originalSnippet = snippet
+    try {
+      const textStart = Math.max(0, digitIndex - contextLength)
+      const textEnd = Math.min(text.length, digitIndex + digits.length + contextLength)
+      originalSnippet = text.slice(textStart, textEnd)
+    } catch (e) {}
+
+    results.push({
+      match: digits,
+      index: digitIndex,
+      snippet: `...${originalSnippet}...`
+    })
+
+    searchPos = digitIndex + 1
   }
 
-  const patterns = createCpfRegexPatterns(cpfDigits);
+  if (digits.length === 11) {
+    const last9Digits = digits.slice(2)
+    const last8Digits = digits.slice(3)
+    
+    searchPos = 0
+    while (searchPos < digitsOnlyText.length - 10) {
+      const sequence = digitsOnlyText.slice(searchPos, searchPos + 11)
+      
+      if (sequence.length === 11) {
+        const seqLast9 = sequence.slice(2)
+        const seqLast8 = sequence.slice(3)
+        
+        if (seqLast9 === last9Digits || seqLast8 === last8Digits) {
+          const alreadyFound = results.some(r => Math.abs(r.index - searchPos) < 11)
+          
+          if (!alreadyFound) {
+            const start = Math.max(0, searchPos - contextLength)
+            const end = Math.min(digitsOnlyText.length, searchPos + 11 + contextLength)
+            const snippet = digitsOnlyText.slice(start, end)
+            
+            let originalSnippet = snippet
+            try {
+              const textStart = Math.max(0, searchPos - contextLength)
+              const textEnd = Math.min(text.length, searchPos + 11 + contextLength)
+              originalSnippet = text.slice(textStart, textEnd)
+            } catch (e) {}
+            
+            results.push({
+              match: sequence,
+              index: searchPos,
+              snippet: `...${originalSnippet}... (variação)`
+            })
+          }
+        }
+      }
+      
+      searchPos++
+    }
+  }
+
   for (const pattern of patterns) {
-    const match = pattern.exec(textLower);
-    if (match) {
-      const snippet = extractSnippet(text, match.index);
-      return { found: true, snippet };
+    let match
+    const uniqueMatches = new Set<number>()
+    
+    while ((match = pattern.exec(text)) !== null) {
+      if (uniqueMatches.has(match.index)) continue
+      uniqueMatches.add(match.index)
+
+      const start = Math.max(0, match.index - contextLength)
+      const end = Math.min(text.length, match.index + match[0].length + contextLength)
+      const snippet = text.slice(start, end)
+
+      const alreadyFound = results.some(r => 
+        Math.abs(r.index - match.index) < 20
+      )
+
+      if (!alreadyFound) {
+        results.push({
+          match: match[0],
+          index: match.index,
+          snippet: `...${snippet}...`
+        })
+      }
     }
   }
 
-  return { found: false, snippet: '' };
-};
-
-const findOriginalIndex = (text: string, digitsIndex: number): number => {
-  let digitCount = 0;
-  for (let i = 0; i < text.length; i++) {
-    if (/\d/.test(text[i])) {
-      if (digitCount === digitsIndex) return i;
-      digitCount++;
-    }
-  }
-  return 0;
-};
-
-const extractSnippet = (text: string, index: number): string => {
-  const start = Math.max(0, index - 30);
-  const end = Math.min(text.length, index + 50);
-  let snippet = text.slice(start, end);
-
-  if (start > 0) snippet = '...' + snippet;
-  if (end < text.length) snippet = snippet + '...';
-
-  return snippet.replace(/\s+/g, ' ').trim();
-};
+  return results
+}

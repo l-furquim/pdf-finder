@@ -1,20 +1,11 @@
 {
+  "files": [],
+  "references": [{ "path": "./tsconfig.node.json" }, { "path": "./tsconfig.web.json" }],
   "compilerOptions": {
-    "target": "ES6",
-    "allowJs": true,
-    "module": "commonjs",
-    "skipLibCheck": true,
-    "esModuleInterop": true,
-    "noImplicitAny": true,
-    "sourceMap": true,
-    "baseUrl": ".",
-    "outDir": "dist",
-    "moduleResolution": "node",
-    "resolveJsonModule": true,
+    "ignoreDeprecations": "6.0",
+    "baseUrl": "/src/renderer/src",
     "paths": {
-      "*": ["node_modules/*"]
-    },
-    "jsx": "react-jsx"
-  },
-  "include": ["src/**/*"]
+      "@/*": ["./*"]
+    }
+  }
 }

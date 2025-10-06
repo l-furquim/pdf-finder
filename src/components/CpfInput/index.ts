@@ -1,1 +1,0 @@
-export { CpfInput } from './CpfInput';
