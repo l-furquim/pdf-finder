@@ -70,28 +70,54 @@ export function ProcessingStatus({ isProcessing, progress }: ProcessingStatusPro
     : 0
 
   return (
-    <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-4">
-      <div className="mb-3 flex items-center gap-3">
-        <Loader2 className="size-5 animate-spin text-indigo-600" />
-        <div className="flex-1">
-          <p className="font-medium text-indigo-900 text-sm">Processando arquivos...</p>
-          {progress && (
-            <p className="text-indigo-700 text-xs">
-              {progress.processedFiles} de {progress.totalFiles} • {progress.currentFile}
-            </p>
-          )}
+    <div 
+      className="fixed bottom-6 right-6 z-50 w-96 transition-all duration-300 ease-out"
+      style={{
+        animation: 'slideInUp 0.3s ease-out'
+      }}
+    >
+      <style>{`
+        @keyframes slideInUp {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
+      <div className="rounded-lg border border-indigo-200 bg-white p-4 shadow-xl">
+        <div className="mb-3 flex items-center gap-3">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-indigo-100">
+            <Loader2 className="size-5 animate-spin text-indigo-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-slate-900 text-sm">Processando arquivos</p>
+            {progress && (
+              <p className="truncate text-slate-600 text-xs" title={progress.currentFile}>
+                {progress.currentFile}
+              </p>
+            )}
+          </div>
+          <span className="font-bold text-indigo-600 text-xl tabular-nums">{percentage}%</span>
         </div>
-        <span className="font-bold text-indigo-600 text-lg">{percentage}%</span>
-      </div>
 
-      {progress && (
-        <div className="h-2 overflow-hidden rounded-full bg-indigo-200">
-          <div
-            className="h-full rounded-full bg-indigo-600 transition-all duration-300"
-            style={{ width: `${percentage}%` }}
-          />
-        </div>
-      )}
+        {progress && (
+          <>
+            <div className="mb-2 h-2 overflow-hidden rounded-full bg-slate-200">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-indigo-600 transition-all duration-300 ease-out"
+                style={{ width: `${percentage}%` }}
+              />
+            </div>
+            <p className="text-center text-slate-500 text-xs">
+              {progress.processedFiles} de {progress.totalFiles} arquivos
+            </p>
+          </>
+        )}
+      </div>
     </div>
   )
 }

@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
-import type { SearchConfig, PdfFile, SearchResult, ProcessingProgress } from '../types'
+import type { SearchConfig, PdfFile, SearchResult, ProcessingProgress, ExcelProcessingResult, DatabaseQueryResult } from '../types'
 
 const api = {
   selectFiles: (): Promise<PdfFile[]> => ipcRenderer.invoke('select-files'),
@@ -14,6 +14,15 @@ const api = {
 
   openPdfAtPage: (filePath: string, pageNumber: number): void =>
     ipcRenderer.send('open-pdf-at-page', filePath, pageNumber),
+
+  selectExcelFile: (): Promise<string | null> => ipcRenderer.invoke('select-excel-file'),
+  processExcelFile: (filePath: string): Promise<ExcelProcessingResult> =>
+    ipcRenderer.invoke('process-excel-file', filePath),
+
+  queryNotFoundCpfs: (cpfs: string[]): Promise<DatabaseQueryResult> =>
+    ipcRenderer.invoke('query-not-found-cpfs', cpfs),
+  testDatabaseConnection: (): Promise<{ success: boolean; message: string }> =>
+    ipcRenderer.invoke('test-database-connection'),
 
   onProcessingStarted: (callback: () => void) => {
     ipcRenderer.on('processing-started', callback)

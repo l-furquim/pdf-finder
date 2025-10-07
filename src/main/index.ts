@@ -1,11 +1,16 @@
+import dotenv from 'dotenv'
 import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join } from 'path'
 import { stat, readdir } from 'fs/promises'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
-import type { SearchConfig, PdfFile, SearchResult } from '../types'
+import type { SearchConfig, PdfFile, SearchResult, ExcelProcessingResult, DatabaseQueryResult } from '../types'
 import { processPdfFiles } from './pdf-processor'
 import { logSearchResults, getLogsDirectory } from './csv-logger'
+import { processExcelFile, getSupportedExcelExtensions } from '../utils/excel'
+import { queryNotFoundCpfs, testMssqlConnection, closeMssqlPool } from './db/mssql'
+
+dotenv.config()
 
 let isProcessing = false
 let shouldCancel = false
@@ -139,6 +144,71 @@ function setupIpcHandlers(): void {
   ipcMain.on('open-pdf-at-page', (_, filePath: string) => {
     shell.openPath(filePath)
   })
+
+  ipcMain.handle('select-excel-file', async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      filters: [
+        {
+          name: 'Excel/CSV Files',
+          extensions: getSupportedExcelExtensions()
+        }
+      ]
+    })
+
+    if (result.canceled || result.filePaths.length === 0) {
+      return null
+    }
+
+    return result.filePaths[0]
+  })
+
+  ipcMain.handle('process-excel-file', async (_, filePath: string): Promise<ExcelProcessingResult> => {
+    try {
+      console.log(`[Main] Processing Excel file: ${filePath}`)
+      const result = await processExcelFile(filePath)
+      console.log(
+        `[Main] Excel processing complete: ${result.cpfs.length} CPFs from ${result.prodespRecords} PRODESP records`
+      )
+      return result
+    } catch (error: any) {
+      console.error(`[Main] Error processing Excel file:`, error)
+      throw new Error(`Erro ao processar arquivo: ${error.message}`)
+    }
+  })
+
+  ipcMain.handle('query-not-found-cpfs', async (_, cpfs: string[]): Promise<DatabaseQueryResult> => {
+    try {
+      console.log(`[Main] Querying MSSQL for ${cpfs.length} not found CPFs`)
+      const result = await queryNotFoundCpfs(cpfs)
+      console.log(
+        `[Main] MSSQL query complete: ${Object.keys(result.data).length} records found`
+      )
+      return result
+    } catch (error: any) {
+      console.error(`[Main] Error querying MSSQL:`, error)
+      return {
+        success: false,
+        data: {},
+        errors: [error.message || 'Erro desconhecido ao consultar MSSQL']
+      }
+    }
+  })
+
+  ipcMain.handle('test-database-connection', async (): Promise<{ success: boolean; message: string }> => {
+    try {
+      console.log('[Main] Testing MSSQL connection...')
+      const result = await testMssqlConnection()
+      console.log(`[Main] MSSQL test result: ${result.message}`)
+      return result
+    } catch (error: any) {
+      console.error('[Main] Error testing MSSQL:', error)
+      return {
+        success: false,
+        message: error.message || 'Erro ao testar conexão'
+      }
+    }
+  })
 }
 
 function createWindow(): BrowserWindow {
@@ -152,7 +222,7 @@ function createWindow(): BrowserWindow {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
     }
   })
 
@@ -198,4 +268,9 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
   }
+})
+
+app.on('before-quit', async () => {
+  console.log('[Main] Closing MSSQL connection pool...')
+  await closeMssqlPool()
 })

@@ -1,6 +1,6 @@
 import { readFile } from 'fs/promises'
 import type { SearchConfig, SearchResult } from '../types'
-import { extractDigits, searchCpfInText } from '../utils/cpf'
+import { extractDigits, searchCpfInText, generateCpfVariations } from '../utils/cpf'
 
 const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.mjs')
 
@@ -52,24 +52,48 @@ export async function processPdfFile(
             continue
           }
 
-          const cpfDigits = extractDigits(cpf)
+          const cpfVariations = generateCpfVariations(cpf)
+          let cpfFound = false
 
-          if (pageDigits.includes(cpfDigits)) {
-            const matches = searchCpfInText(pageText, cpf, 80)
+          for (const variation of cpfVariations) {
+            if (pageDigits.includes(variation)) {
+              const matches = searchCpfInText(pageText, cpf, 80)
 
-            if (matches.length > 0) {
-              const snippet = matches[0].snippet
-              results.push({
-                cpf,
-                filePath,
-                fileName: filePath.split(/[\\/]/).pop() || filePath,
-                pageNumber: pageNum,
-                snippet: snippet.replace(/\s+/g, ' ').trim(),
-                timestamp: new Date()
-              })
+              if (matches.length > 0) {
+                const snippet = matches[0].snippet
+                results.push({
+                  cpf,
+                  filePath,
+                  fileName: filePath.split(/[\\/]/).pop() || filePath,
+                  pageNumber: pageNum,
+                  snippet: snippet.replace(/\s+/g, ' ').trim(),
+                  timestamp: new Date()
+                })
 
-              foundOnPage.add(cpf)
-              console.log(`[PDF Processor] ✓ Found CPF ${cpf} on page ${pageNum} of ${filePath.split(/[\\/]/).pop()}`)
+                foundOnPage.add(cpf)
+                cpfFound = true
+                console.log(`[PDF Processor] ✓ Found CPF ${cpf} (variation: ${variation}) on page ${pageNum} of ${filePath.split(/[\\/]/).pop()}`)
+                break
+              }
+            }
+          }
+
+          if (!cpfFound) {
+            for (const variation of cpfVariations) {
+              if (pageDigits.includes(variation)) {
+                results.push({
+                  cpf,
+                  filePath,
+                  fileName: filePath.split(/[\\/]/).pop() || filePath,
+                  pageNumber: pageNum,
+                  snippet: `Encontrado: ${variation}`,
+                  timestamp: new Date()
+                })
+
+                foundOnPage.add(cpf)
+                console.log(`[PDF Processor] ✓ Found CPF ${cpf} (variation: ${variation}) on page ${pageNum} of ${filePath.split(/[\\/]/).pop()}`)
+                break
+              }
             }
           }
         }

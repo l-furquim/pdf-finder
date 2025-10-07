@@ -31,13 +31,47 @@ export interface PdfFile {
 
 export interface SearchConfig {
   cpfs: string[]
-  permissiveMode: boolean
   files: PdfFile[]
 }
 
 export interface WorkerMessage {
   type: 'progress' | 'result' | 'error' | 'complete'
   data?: any
+}
+
+export interface EmployeeRecord {
+  Matricula: string
+  Nome: string
+  CPF: string
+  Cliente: string
+  Agencia: string
+  Conta: string
+  'Tipo de pagamento': string
+  'Status Comprovante': string
+}
+
+export interface ExcelProcessingResult {
+  cpfs: string[]
+  totalRecords: number
+  prodespRecords: number
+  fileName: string
+}
+
+export interface EmployeeData {
+  MATRICULA: string
+  NOME: string
+}
+
+export interface NotFoundCpfWithData {
+  cpf: string
+  employeeData?: EmployeeData
+  error?: string
+}
+
+export interface DatabaseQueryResult {
+  success: boolean
+  data: Record<string, EmployeeData>
+  errors: string[]
 }
 
 export interface IpcChannels {
@@ -48,4 +82,6 @@ export interface IpcChannels {
   'open-pdf-at-page': (filePath: string, pageNumber: number) => void
   'get-logs-directory': () => Promise<string>
   'open-logs-directory': () => void
+  'process-excel-file': (filePath: string) => Promise<ExcelProcessingResult>
+  'select-excel-file': () => Promise<string | null>
 }

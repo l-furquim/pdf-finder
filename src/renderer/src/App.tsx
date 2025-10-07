@@ -4,15 +4,16 @@ import { CpfInput } from './components/CpfInput'
 import { FileUploadArea } from './components/FileUploadArea'
 import { ResultsTable } from './components/ResultsTable'
 import { SearchControls, ProcessingStatus } from './components/SearchControls'
-import type { PdfFile, SearchResult, ProcessingProgress } from '../../types'
+import type { PdfFile, SearchResult, ProcessingProgress, EmployeeData } from '../../types'
 
 function App() {
   const [cpfs, setCpfs] = useState<string[]>([])
-  const [permissiveMode, setPermissiveMode] = useState(false)
   const [files, setFiles] = useState<PdfFile[]>([])
   const [results, setResults] = useState<SearchResult[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
   const [progress, setProgress] = useState<ProcessingProgress | undefined>()
+  const [databaseData, setDatabaseData] = useState<Record<string, EmployeeData>>({})
+  const [isLoadingDatabase, setIsLoadingDatabase] = useState(false)
 
   const canStart = cpfs.length > 0 && files.length > 0 && !isProcessing
 
@@ -25,8 +26,7 @@ function App() {
 
     window.api.processPdfs({
       cpfs,
-      files,
-      permissiveMode
+      files
     })
   }
 
@@ -87,6 +87,40 @@ function App() {
     }
   }, [])
 
+  useEffect(() => {
+    const queryDatabaseForNotFound = async () => {
+      if (isProcessing || results.length === 0 || cpfs.length === 0) return
+
+      const foundCpfs = new Set(results.map((r) => r.cpf))
+      const notFoundCpfs = cpfs.filter((cpf) => !foundCpfs.has(cpf))
+
+      if (notFoundCpfs.length === 0) {
+        setDatabaseData({})
+        return
+      }
+
+      setIsLoadingDatabase(true)
+      setDatabaseData({})
+
+      try {
+        const result = await window.api.queryNotFoundCpfs(notFoundCpfs)
+        if (result.success) {
+          console.log("Resultado do banco: " + result.data);
+
+          setDatabaseData(result.data)
+        } else {
+          console.error('Erro ao consultar banco de dados:', result.errors)
+        }
+      } catch (error: any) {
+        console.error('Erro ao consultar banco de dados:', error)
+      } finally {
+        setIsLoadingDatabase(false)
+      }
+    }
+
+    queryDatabaseForNotFound()
+  }, [results, cpfs, isProcessing])
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       {/* Header */}
@@ -113,8 +147,6 @@ function App() {
               <CpfInput
                 cpfs={cpfs}
                 onChange={setCpfs}
-                permissiveMode={permissiveMode}
-                onPermissiveModeChange={setPermissiveMode}
               />
             </div>
 
@@ -136,19 +168,21 @@ function App() {
             />
           </div>
 
-          {/* Processing Status */}
-          {isProcessing && (
-            <ProcessingStatus isProcessing={isProcessing} progress={progress} />
-          )}
-
           {/* Results */}
-          {results.length > 0 && (
+          {(results.length > 0 || cpfs.length > 0) && !isProcessing && (
             <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-              <ResultsTable results={results} />
+              <ResultsTable 
+                results={results} 
+                searchedCpfs={cpfs}
+                databaseData={databaseData}
+                isLoadingDatabase={isLoadingDatabase}
+              />
             </div>
           )}
         </div>
       </main>
+
+      <ProcessingStatus isProcessing={isProcessing} progress={progress} />
     </div>
   )
 }

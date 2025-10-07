@@ -2,15 +2,11 @@ export function extractDigits(text: string): string {
   return text.replace(/\D/g, '')
 }
 
-export function normalizeCpf(cpf: string, permissiveMode: boolean = false): string | null {
+export function normalizeCpf(cpf: string): string | null {
   const digits = extractDigits(cpf)
 
   if (digits.length === 11) {
     return digits
-  }
-
-  if (digits.length < 11 && permissiveMode) {
-    return digits.padStart(11, '0')
   }
 
   if (digits.length > 11) {
@@ -20,13 +16,13 @@ export function normalizeCpf(cpf: string, permissiveMode: boolean = false): stri
   return null
 }
 
-export function parseCpfList(text: string, permissiveMode: boolean = false): string[] {
+export function parseCpfList(text: string): string[] {
   const separators = /[,;\n\r\t]+/
   const cpfs = text
     .split(separators)
     .map((cpf) => cpf.trim())
     .filter((cpf) => cpf.length > 0)
-    .map((cpf) => normalizeCpf(cpf, permissiveMode))
+    .map((cpf) => normalizeCpf(cpf))
     .filter((cpf): cpf is string => cpf !== null)
 
   return Array.from(new Set(cpfs))
@@ -37,6 +33,26 @@ export function formatCpf(cpf: string): string {
   if (digits.length !== 11) return cpf
 
   return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9, 11)}`
+}
+
+/**
+ * Gera variações do CPF para busca, incluindo versões sem zeros à esquerda
+ * Ex: 05739713870 -> ['05739713870', '5739713870']
+ */
+export function generateCpfVariations(cpf: string): string[] {
+  const digits = extractDigits(cpf)
+  if (digits.length !== 11) return [digits]
+
+  const variations: string[] = [digits]
+
+  if (digits[0] === '0') {
+    const withoutLeadingZeros = digits.replace(/^0+/, '')
+    if (withoutLeadingZeros.length > 0) {
+      variations.push(withoutLeadingZeros)
+    }
+  }
+
+  return variations
 }
 
 export function generateCpfPatterns(cpf: string): RegExp[] {

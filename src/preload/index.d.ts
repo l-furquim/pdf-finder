@@ -1,5 +1,5 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
-import type { SearchConfig, PdfFile, SearchResult, ProcessingProgress } from '../types'
+import type { SearchConfig, PdfFile, SearchResult, ProcessingProgress, ExcelProcessingResult, DatabaseQueryResult } from '../types'
 
 interface Api {
   selectFiles: () => Promise<PdfFile[]>
@@ -9,6 +9,10 @@ interface Api {
   getLogsDirectory: () => Promise<string>
   openLogsDirectory: () => void
   openPdfAtPage: (filePath: string, pageNumber: number) => void
+  selectExcelFile: () => Promise<string | null>
+  processExcelFile: (filePath: string) => Promise<ExcelProcessingResult>
+  queryNotFoundCpfs: (cpfs: string[]) => Promise<DatabaseQueryResult>
+  testDatabaseConnection: () => Promise<{ success: boolean; message: string }>
   onProcessingStarted: (callback: () => void) => () => void
   onProcessingProgress: (callback: (progress: ProcessingProgress) => void) => () => void
   onProcessingResult: (callback: (result: SearchResult) => void) => () => void

@@ -1,24 +1,23 @@
 import { useState, useEffect } from 'react'
-import { X, Upload, AlertCircle } from 'lucide-react'
+import { X, Upload, AlertCircle, FileSpreadsheet } from 'lucide-react'
 import { Button } from './ui/button'
 import { parseCpfList, formatCpf } from '../../../utils/cpf'
 
 interface CpfInputProps {
   cpfs: string[]
   onChange: (cpfs: string[]) => void
-  permissiveMode: boolean
-  onPermissiveModeChange: (enabled: boolean) => void
 }
 
-export function CpfInput({ cpfs, onChange, permissiveMode, onPermissiveModeChange }: CpfInputProps) {
+export function CpfInput({ cpfs, onChange }: CpfInputProps) {
   const [inputValue, setInputValue] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [isLoadingExcel, setIsLoadingExcel] = useState(false)
 
   const handleAddCpfs = () => {
     if (!inputValue.trim()) return
 
     try {
-      const newCpfs = parseCpfList(inputValue, permissiveMode)
+      const newCpfs = parseCpfList(inputValue)
 
       if (newCpfs.length === 0) {
         setError('Nenhum CPF válido encontrado')
@@ -44,7 +43,7 @@ export function CpfInput({ cpfs, onChange, permissiveMode, onPermissiveModeChang
 
     try {
       const text = await file.text()
-      const newCpfs = parseCpfList(text, permissiveMode)
+      const newCpfs = parseCpfList(text)
 
       if (newCpfs.length === 0) {
         setError('Nenhum CPF válido encontrado no arquivo')
@@ -61,6 +60,51 @@ export function CpfInput({ cpfs, onChange, permissiveMode, onPermissiveModeChang
     event.target.value = ''
   }
 
+  const handleExcelFileUpload = async () => {
+    try {
+      setIsLoadingExcel(true)
+      setError(null)
+
+      // Open file dialog
+      const filePath = await window.api.selectExcelFile()
+
+      if (!filePath) {
+        setIsLoadingExcel(false)
+        return
+      }
+
+      // Process the Excel file
+      const result = await window.api.processExcelFile(filePath)
+
+      if (result.cpfs.length === 0) {
+        setError(
+          `Nenhum CPF encontrado. Total de registros: ${result.totalRecords}, Registros PRODESP: ${result.prodespRecords}`
+        )
+        setIsLoadingExcel(false)
+        return
+      }
+
+      // Add extracted CPFs
+      const allCpfs = Array.from(new Set([...cpfs, ...result.cpfs]))
+      onChange(allCpfs)
+
+      // Show success message
+      setError(null)
+      alert(
+        `✓ ${result.cpfs.length} CPFs extraídos com sucesso!\n\n` +
+        `Arquivo: ${result.fileName}\n` +
+        `Total de registros: ${result.totalRecords}\n` +
+        `Registros PRODESP: ${result.prodespRecords}\n` +
+        `CPFs únicos: ${result.cpfs.length}`
+      )
+
+      setIsLoadingExcel(false)
+    } catch (err: any) {
+      setError(`Erro ao processar planilha: ${err.message || 'Erro desconhecido'}`)
+      setIsLoadingExcel(false)
+    }
+  }
+
   useEffect(() => {
     if (error) {
       const timer = setTimeout(() => setError(null), 5000)
@@ -73,28 +117,7 @@ export function CpfInput({ cpfs, onChange, permissiveMode, onPermissiveModeChang
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="font-semibold text-lg text-slate-900">CPFs para Buscar</h2>
-        <div className="flex items-center gap-2">
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={permissiveMode}
-              onChange={(e) => onPermissiveModeChange(e.target.checked)}
-              className="size-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-            />
-            <span className="text-slate-700">Modo Permissivo</span>
-          </label>
-        </div>
       </div>
-
-      {permissiveMode && (
-        <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-          <AlertCircle className="size-4 shrink-0 mt-0.5" />
-          <p>
-            Modo permissivo ativado: CPFs com menos de 11 dígitos serão preenchidos com zeros à
-            esquerda. Isso pode gerar falsos positivos.
-          </p>
-        </div>
-      )}
 
       <div className="space-y-3">
         <div className="flex gap-2">
@@ -113,7 +136,7 @@ export function CpfInput({ cpfs, onChange, permissiveMode, onPermissiveModeChang
 
           <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50">
             <Upload className="size-4" />
-            Carregar de arquivo
+            Carregar TXT
             <input
               type="file"
               accept=".txt,.csv"
@@ -121,6 +144,16 @@ export function CpfInput({ cpfs, onChange, permissiveMode, onPermissiveModeChang
               className="hidden"
             />
           </label>
+
+          <Button
+            onClick={handleExcelFileUpload}
+            disabled={isLoadingExcel}
+            variant="outline"
+            className="gap-2"
+          >
+            <FileSpreadsheet className="size-4" />
+            {isLoadingExcel ? 'Processando...' : 'Carregar Excel'}
+          </Button>
         </div>
 
         {error && (
